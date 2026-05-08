@@ -1,0 +1,6 @@
+Necesito hacer una aplicación para gestionar los clientes y cuando tengo que ponerme en contacto con ellos. Para eso, lo primero que tenemos que hacer es crear una base de datos con todos, pero no todos te los voy a poder poner en el mismo formato. Quiero que la base de datos se guarde en local pero se copie en una base de datos online únicamente para poder recuperarla en caso de que le pase algo a mi pc. Quiero que estéticamente sean bastante sencillo, colores agradables y con mucho contraste para que se vea bien, es para trabajar.
+
+Vale. lo primero que vamos a hacer es crear la base de datos, ahora te voy a introducir una serie de clientes. Estos clientes son con los que ya hemos trabajado. Necesito poder copiarlos y pegarlos en algún sitio y que automáticamente se guarden en la base de datos. No todos tienen todos los campos rellenados y no pasa nada. Este es el orden de información de las columnas separadas por una barra:
+
+Persona de contacto/Cliente/teléfono/email/fecha 1/esta columna estará en blanco/fecha 2/ columna en blanco / columna en blanco/ Ultima vez que hemos trabajado o que vamos a trabajar.
+

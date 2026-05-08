@@ -1,0 +1,11 @@
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Copias de seguridad locales (si tienes archivos .json de backup)
+*.json
+!backup_template.json
+
+# Carpetas de editores
+.vscode/
+.idea/

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Clientes</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <h1>Gestión de Clientes</h1>
+            <div class="actions">
+                <button id="btn-add-client" class="btn btn-primary">+ Añadir Cliente</button>
+                <button id="btn-export" class="btn btn-secondary">Exportar Backup</button>
+                <button id="btn-import-trigger" class="btn btn-secondary">Importar Backup</button>
+                <button id="btn-textos" class="btn btn-secondary" onclick="openTextosModal()">📝 Textos</button>
+                <button id="btn-debug-vip" class="btn btn-secondary" style="background: #475569; color: white;" onclick="showAlgorithmAudit()">🔍 Auditar Algoritmo</button>
+                <input type="file" id="input-import" accept=".json" style="display: none;">
+            </div>
+        </div>
+    </header>
+    
+    <div id="daily-stats-bar" class="daily-stats-bar container">
+        <!-- Las estadísticas se cargarán aquí -->
+    </div>
+
+    <main class="container">
+        <section class="data-section card">
+            <div class="tabs">
+                <button id="tab-pending" class="tab-btn active">Gestiones Pendientes <span id="pending-badge" class="badge-dot" style="display:none;"></span></button>
+                <button id="tab-distance" class="tab-btn">Por Distancia</button>
+                <button id="tab-inhabitants" class="tab-btn">Por Habitantes</button>
+                <button id="tab-no-contact" type="button" class="tab-btn">Sin Contactar</button>
+                <button id="tab-all" type="button" class="tab-btn">Todos los Clientes</button>
+                <button id="tab-billing" type="button" class="tab-btn">💰 Facturación</button>
+                <button id="tab-calendar" type="button" class="tab-btn">📅 Calendario</button>
+                <button id="tab-vip" type="button" class="tab-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border: none;">🏆 Ranking VIP</button>
+            </div>
+            
+            <div class="table-header">
+                <h2>Base de Datos de Clientes (<span id="client-count">0</span>)</h2>
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Buscar por nombre, pueblo, teléfono o email...">
+                    <div class="advanced-filters">
+                        <select id="filter-province">
+                            <option value="">Todas las Provincias</option>
+                        </select>
+                        <select id="filter-inhabitants">
+                            <option value="">Todos los Tamaños</option>
+                            <option value="very-small">< 500 hab.</option>
+                            <option value="small">500 - 1.000 hab.</option>
+                            <option value="medium">1.000 - 5.000 hab.</option>
+                            <option value="large">5.000 - 10.000 hab.</option>
+                            <option value="very-large">> 10.000 hab.</option>
+                            <option value="mancomunidad">Mancomunidades</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="top-scrollbar-container" class="top-scrollbar">
+                <div id="top-scrollbar-content"></div>
+            </div>
+
+            <div class="table-container" id="table-wrapper">
+                <table id="clients-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre/Contacto</th>
+                            <th>Empresa/Pueblo</th>
+                            <th>Provincia</th>
+                            <th>Habitantes</th>
+                            <th>Distancia (km)</th>
+                            <th>Teléfono</th>
+                            <th>Correo</th>
+                            <th>Último Trabajo</th>
+                            <th>Último Contacto</th>
+                            <th>Seguimiento</th>
+                            <th>Próximo 1</th>
+                            <th>Próximo 2</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-body">
+                        <!-- Los clientes se insertarán aquí -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Contenedor del Calendario (Oculto por defecto) -->
+            <div id="calendar-view" class="calendar-container" style="display: none;">
+                <div class="calendar-header">
+                    <button id="prev-month" class="btn-calendar">&lt;</button>
+                    <h2 id="calendar-month-year">Mes Año</h2>
+                    <button id="next-month" class="btn-calendar">&gt;</button>
+                </div>
+                <div class="calendar-grid-header">
+                    <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+                </div>
+                <div id="calendar-days" class="calendar-days"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal para ficha de cliente -->
+    <div id="client-modal" class="modal">
+        <div class="modal-content card">
+            <div class="modal-header-sticky">
+                <h2 id="modal-title">Ficha del Cliente</h2>
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+            </div>
+            
+            <div id="modal-body-container" class="modal-body-grid">
+                <div id="modal-details" class="details-grid">
+                    <!-- Datos del cliente -->
+                </div>
+                <div id="modal-history-container">
+                    <!-- Historial (se inyectará vía JS) -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="btn-modal-save" class="btn btn-primary" onclick="saveClientChanges()">Guardar Cambios</button>
+                <button id="btn-modal-delete" class="btn btn-danger" onclick="deleteClientFromModal()">Eliminar Cliente</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel flotante de plantillas de textos -->
+    <div id="textos-panel" class="textos-floating-panel" style="display:none;">
+        <div class="textos-panel-header" id="textos-panel-drag-handle">
+            <span>📝 Plantillas de Textos</span>
+            <button class="textos-panel-close" onclick="closeTextosModal()">&times;</button>
+        </div>
+        <div class="textos-panel-body">
+            <div id="textos-container" class="textos-panel-grid">
+                <!-- Las plantillas se inyectarán aquí -->
+            </div>
+        </div>
+    </div>
+
+    <div id="hover-preview"></div>
+    <datalist id="province-list"></datalist>
+    <script src="js/app.js"></script>
+</body>
+</html>
