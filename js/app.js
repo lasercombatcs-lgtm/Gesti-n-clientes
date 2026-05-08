@@ -12,6 +12,7 @@ const firebaseConfig = {
 // Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 
 // Variables globales
 let clients = [];
@@ -85,7 +86,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (filterProvince) filterProvince.addEventListener('change', filterClients);
     if (filterInhabitants) filterInhabitants.addEventListener('change', filterClients);
 
-    // Listeners Modal
+    // Listener de Login
+    const btnLogin = document.getElementById('btn-login');
+    if (btnLogin) btnLogin.addEventListener('click', handleLogin);
+
+    // Control de acceso con Firebase
+    auth.onAuthStateChanged((user) => {
+        const loginOverlay = document.getElementById('login-overlay');
+        if (user) {
+            console.log("Acceso concedido:", user.email);
+            if (loginOverlay) loginOverlay.style.display = 'none';
+            loadClients(); // Cargar datos solo tras el login
+        } else {
+            console.log("Esperando login...");
+            if (loginOverlay) loginOverlay.style.display = 'flex';
+            clients = []; // Limpiar datos si no hay sesión
+            filterClients();
+        }
+    });
+
+    // Restaurar Listeners del Modal
     if (closeModalX) closeModalX.onclick = closeModal;
     closeModalBtns.forEach(btn => {
         if (btn) btn.onclick = closeModal;
@@ -132,6 +152,35 @@ document.addEventListener('keydown', (e) => {
 /**
  * Carga los clientes desde LocalStorage
  */
+/**
+ * Maneja el inicio de sesión
+ */
+async function handleLogin() {
+    const email = document.getElementById('login-email').value;
+    const pass = document.getElementById('login-password').value;
+    const errorMsg = document.getElementById('login-error');
+    const btn = document.getElementById('btn-login');
+
+    if (!email || !pass) {
+        errorMsg.textContent = "Introduce email y contraseña.";
+        errorMsg.style.display = 'block';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Verificando...";
+
+    try {
+        await auth.signInWithEmailAndPassword(email, pass);
+    } catch (error) {
+        console.error("Error de login:", error);
+        errorMsg.textContent = "Email o contraseña incorrectos.";
+        errorMsg.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = "Entrar al Sistema";
+    }
+}
+
 function loadClients() {
     // 1. Carga rápida desde LocalStorage
     const saved = localStorage.getItem('laser_clients');
