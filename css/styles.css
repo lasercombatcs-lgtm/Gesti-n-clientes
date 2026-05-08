@@ -67,6 +67,42 @@ h2 {
     color: var(--text-main);
 }
 
+/* Cloud Status Indicator */
+.cloud-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f5f9;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #475569;
+    margin-right: 15px;
+    border: 1px solid #e2e8f0;
+}
+
+.cloud-icon {
+    font-size: 1rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-dot.online {
+    background-color: #16a34a;
+    box-shadow: 0 0 8px rgba(22, 163, 74, 0.5);
+}
+
+.status-dot.offline {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
 /* Cards */
 .card {
     background-color: var(--card-bg);

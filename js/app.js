@@ -97,6 +97,20 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Acceso concedido:", user.email);
             if (loginOverlay) loginOverlay.style.display = 'none';
             loadClients(); // Cargar datos solo tras el login
+            
+            // Activar indicador de conexión real
+            const connectedRef = db.ref(".info/connected");
+            connectedRef.on("value", (snap) => {
+                const dot = document.getElementById('cloud-status-dot');
+                const text = document.getElementById('cloud-status-text');
+                if (snap.val() === true) {
+                    if (dot) { dot.classList.remove('offline'); dot.classList.add('online'); }
+                    if (text) text.textContent = "Sincronizado";
+                } else {
+                    if (dot) { dot.classList.remove('online'); dot.classList.add('offline'); }
+                    if (text) text.textContent = "Desconectado";
+                }
+            });
         } else {
             console.log("Esperando login...");
             if (loginOverlay) loginOverlay.style.display = 'flex';
