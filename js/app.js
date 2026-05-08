@@ -1,3 +1,18 @@
+// Configuración de Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyBvAFdaZfCJO_aXWP2XvYuurXaPHaqytgY",
+  authDomain: "clientes-4a2d0.firebaseapp.com",
+  databaseURL: "https://clientes-4a2d0-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "clientes-4a2d0",
+  storageBucket: "clientes-4a2d0.firebasestorage.app",
+  messagingSenderId: "880704686667",
+  appId: "1:880704686667:web:5590870d431b5a47bc5bce"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 // Variables globales
 let clients = [];
 
@@ -118,51 +133,31 @@ document.addEventListener('keydown', (e) => {
  * Carga los clientes desde LocalStorage
  */
 function loadClients() {
+    // 1. Carga rápida desde LocalStorage
     const saved = localStorage.getItem('laser_clients');
-    if (!saved) return;
+    if (saved) {
+        try {
+            clients = JSON.parse(saved);
+            filterClients();
+            updateProvinceFilter();
+            updatePendingBadge();
+        } catch (e) { console.error("Error cargando local", e); }
+    }
 
-    try {
-        let loaded = JSON.parse(saved);
-        if (!Array.isArray(loaded)) {
-            clients = [];
-            return;
-        }
-
-        clients = loaded.map(c => {
-            if (!c || typeof c !== 'object') return null;
-
-            // Asegurar que todos los campos necesarios existen
-            let client = {
-                id: c.id || (Date.now() + Math.random()).toString(),
-                contactName: c.contactName || c.name || '',
-                clientName: c.clientName || c.empresa || '',
-                town: c.town || c.pueblo || '',
-                province: c.province || '',
-                inhabitants: c.inhabitants || '',
-                distance: c.distance || '',
-                phone: c.phone || '',
-                email: c.email || '',
-                ultimoTrabajo: c.ultimoTrabajo || '',
-                ultimoContacto: c.ultimoContacto || '',
-                proximo1: c.proximo1 || '',
-                proximo2: c.proximo2 || '',
-                proximo3: c.proximo3 || '',
-                notas: c.notas || '',
-                status: c.status || 'no-trabajado',
-                history: Array.isArray(c.history) ? c.history : []
-            };
-
-            // Normalización de Provincias
-            client = normalizeProvince(client);
-            return ensureEventoHistory(autoUpdateStatus(client));
-        }).filter(c => c !== null);
-
-        saveClients();
-        updateProvinceFilter();
-        updatePendingBadge();
-    } catch (e) {
-        console.error("Error crítico al cargar clientes:", e);
-        clients = [];
+    // 2. Sincronización en tiempo real con Firebase
+    if (typeof db !== 'undefined') {
+        db.ref('clients').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                console.log("Datos sincronizados desde Firebase");
+                clients = data;
+                localStorage.setItem('laser_clients', JSON.stringify(clients));
+                filterClients();
+                updateProvinceFilter();
+                updatePendingBadge();
+                updateDailyStatsUI();
+            }
+        });
     }
 }
 
@@ -200,7 +195,15 @@ function normalizeProvince(client) {
  * Guarda los clientes en LocalStorage
  */
 function saveClients() {
+    // 1. Guardar copia local
     localStorage.setItem('laser_clients', JSON.stringify(clients));
+    
+    // 2. Guardar en la nube (Firebase)
+    if (typeof db !== 'undefined') {
+        db.ref('clients').set(clients)
+            .then(() => console.log("Nube actualizada"))
+            .catch(err => console.error("Error subiendo a nube:", err));
+    }
 }
 
 /**
