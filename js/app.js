@@ -1,12 +1,12 @@
 // Configuración de Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyBvAFdaZfCJO_aXWP2XvYuurXaPHaqytgY",
-  authDomain: "clientes-4a2d0.firebaseapp.com",
-  databaseURL: "https://clientes-4a2d0-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "clientes-4a2d0",
-  storageBucket: "clientes-4a2d0.firebasestorage.app",
-  messagingSenderId: "880704686667",
-  appId: "1:880704686667:web:5590870d431b5a47bc5bce"
+    apiKey: "AIzaSyBvAFdaZfCJO_aXWP2XvYuurXaPHaqytgY",
+    authDomain: "clientes-4a2d0.firebaseapp.com",
+    databaseURL: "https://clientes-4a2d0-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "clientes-4a2d0",
+    storageBucket: "clientes-4a2d0.firebasestorage.app",
+    messagingSenderId: "880704686667",
+    appId: "1:880704686667:web:5590870d431b5a47bc5bce"
 };
 
 // Inicializar Firebase
@@ -98,6 +98,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (loginOverlay) loginOverlay.style.display = 'none';
             loadClients(); // Cargar datos solo tras el login
             
+            // Sincronizar Estadísticas (Contadores diarios)
+            db.ref('dailyStats').on('value', (snap) => {
+                if (snap.val()) {
+                    dailyStats = snap.val();
+                    localStorage.setItem('laser_daily_stats', JSON.stringify(dailyStats));
+                    updateDailyStatsUI();
+                }
+            });
+
+            // Sincronizar Plantillas de Textos
+            db.ref('textTemplates').on('value', (snap) => {
+                if (snap.val()) {
+                    emailTemplates = snap.val();
+                    localStorage.setItem('laser_text_templates', JSON.stringify(emailTemplates));
+                }
+            });
+
             // Activar indicador de conexión real
             const connectedRef = db.ref(".info/connected");
             connectedRef.on("value", (snap) => {
@@ -260,7 +277,7 @@ function normalizeProvince(client) {
 function saveClients() {
     // 1. Guardar copia local
     localStorage.setItem('laser_clients', JSON.stringify(clients));
-    
+
     // 2. Guardar en la nube (Firebase)
     if (typeof db !== 'undefined') {
         db.ref('clients').set(clients)
@@ -1266,7 +1283,7 @@ function filterClients() {
     } else if (currentTab === 'billing') {
         // En facturación mostramos todos los que tengan ALGO facturado
         filtered = filtered.filter(c => (c.history || []).length > 0);
-        
+
         filtered.forEach(c => {
             c._totalFacturado = (c.history || []).reduce((acc, h) => acc + (parseFloat(h.amount) || 0), 0);
         });
@@ -1459,6 +1476,7 @@ function trackContact(tabName) {
     if (validTabs.includes(tabName)) {
         dailyStats[today][tabName] = (dailyStats[today][tabName] || 0) + 1;
         localStorage.setItem('laser_daily_stats', JSON.stringify(dailyStats));
+        if (typeof db !== 'undefined') db.ref('dailyStats').set(dailyStats);
         updateDailyStatsUI();
     }
 }
@@ -2022,6 +2040,7 @@ window.saveTemplate = function (name) {
 
     emailTemplates[name] = { subject, body };
     localStorage.setItem('laser_text_templates', JSON.stringify(emailTemplates));
+    if (typeof db !== 'undefined') db.ref('textTemplates').set(emailTemplates);
 
     // Ocultar edición
     toggleEditTemplate(name);
@@ -2232,14 +2251,14 @@ window.showAlgorithmAudit = function () {
             // 1. Agrupar todas las fechas por Provincia + Rango (INCLUYE PAGADORES E INTERESADOS)
             clients.forEach(c => {
                 if (!c.province) return;
-                
+
                 // Extraer fechas de seguimiento limpias
                 const datesToProcess = [c.proximo1, c.proximo2, c.proximo3].filter(d => d);
                 if (datesToProcess.length === 0) return;
 
                 const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
                 const rKey = getRangeKey(inhabs);
-                
+
                 const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
                 const isInterested = String(c.status).toLowerCase() === 'interesado';
 
@@ -2248,7 +2267,7 @@ window.showAlgorithmAudit = function () {
 
                 const combKey = `${c.province}|${rKey}`;
                 if (!combinations[combKey]) combinations[combKey] = [];
-                
+
                 datesToProcess.forEach(dStr => {
                     // Asegurar formato YYYY-MM-DD para el constructor de Date
                     const d = new Date(formatDateForInput(dStr));
