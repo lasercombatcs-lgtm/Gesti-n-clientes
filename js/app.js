@@ -2204,12 +2204,12 @@ window.showAlgorithmAudit = function () {
                     <div>
                         <h4 style="color: var(--primary-color);">Potencial Económico (Máx 40 pts)</h4>
                         <table style="font-size: 0.7rem; margin-top:10px; width:100%;">
-                            <thead><tr><th>Rango</th><th>Media Fact.</th><th>Puntos</th></tr></thead>
+                            <thead><tr><th>Rango</th><th style="text-align:center;">Pueblos</th><th>Media Fact.</th><th>Puntos</th></tr></thead>
                             <tbody>
                                 ${Object.entries(ranges).map(([key, data]) => {
         const avg = data.count > 0 ? data.total / data.count : 0;
         const pts = maxAvg > 0 ? (avg / maxAvg) * 40 : 0;
-        return `<tr><td>${key}</td><td>${Math.round(avg)}€</td><td style="font-weight:bold; color:${pts > 20 ? '#16a34a' : '#475569'}">${Math.round(pts)}/40</td></tr>`;
+        return `<tr><td>${key}</td><td style="text-align:center; color:#64748b;">${data.count}</td><td>${Math.round(avg)}€</td><td style="font-weight:bold; color:${pts > 20 ? '#16a34a' : '#475569'}">${Math.round(pts)}/40</td></tr>`;
     }).join('')}
                             </tbody>
                         </table>
