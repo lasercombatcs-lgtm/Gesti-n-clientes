@@ -1507,6 +1507,89 @@ function updateDailyStatsUI() {
 /**
  * Lógica del Calendario
  */
+
+/**
+ * Algoritmo Dinámico de Rangos de Habitantes
+ * Divide automáticamente los rangos si superan el 20% del total de pueblos de referencia.
+ */
+function getDynamicRanges() {
+    // Límites base iniciales
+    let bounds = [0, 100, 500, 2000, 5000, 10000, 20000, 50000, 100000, 500000, Infinity];
+    
+    // Obtener pueblos de referencia (los que participan en la lógica)
+    const referenceClients = clients.filter(c => {
+        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+        const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
+        return inhabs !== 1000000 && (hasMoney || String(c.status).toLowerCase() === 'interesado');
+    });
+    
+    const totalRef = referenceClients.length;
+    if (totalRef === 0) return buildRangeFunctions(bounds);
+    
+    const maxAllowed = totalRef * 0.20;
+    let needsSplit = true;
+    
+    while(needsSplit) {
+        needsSplit = false;
+        let newBounds = [...bounds];
+        
+        for (let i = 0; i < bounds.length - 1; i++) {
+            let lower = bounds[i];
+            let upper = bounds[i+1];
+            
+            let count = referenceClients.filter(c => {
+                const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+                return inhabs >= lower && inhabs < upper;
+            }).length;
+            
+            if (count > maxAllowed) {
+                let effectiveUpper = upper === Infinity ? 1000000 : upper;
+                if (effectiveUpper - lower > 1) {
+                    let mid = Math.floor((lower + effectiveUpper) / 2);
+                    if (!newBounds.includes(mid)) {
+                        newBounds.push(mid);
+                        needsSplit = true;
+                    }
+                }
+            }
+        }
+        
+        if (needsSplit) {
+            newBounds.sort((a, b) => a - b);
+            bounds = newBounds;
+        }
+    }
+    
+    return buildRangeFunctions(bounds);
+}
+
+function buildRangeFunctions(bounds) {
+    const rangesObj = {};
+    const getRangeKey = (h) => {
+        const cleanH = parseInt(String(h).replace(/[^\d]/g, '')) || 0;
+        for (let i = 0; i < bounds.length - 1; i++) {
+            if (cleanH >= bounds[i] && cleanH < bounds[i+1]) {
+                return formatRangeName(bounds[i], bounds[i+1]);
+            }
+        }
+        return formatRangeName(bounds[bounds.length-2], Infinity);
+    };
+    
+    for (let i = 0; i < bounds.length - 1; i++) {
+        let name = formatRangeName(bounds[i], bounds[i+1]);
+        rangesObj[name] = { total: 0, count: 0 };
+    }
+    
+    return { ranges: rangesObj, getRangeKey };
+}
+
+function formatRangeName(lower, upper) {
+    const formatNum = (num) => num.toLocaleString('es-ES').replace(/,/g, '.');
+    if (lower === 0) return `<${formatNum(upper)}`;
+    if (upper === Infinity) return `${formatNum(lower)}+`;
+    return `${formatNum(lower)}-${formatNum(upper - 1)}`;
+}
+
 /**
  * Cerebro del Sistema: Calcula el Ranking VIP (0-100 pts)
  */
@@ -1525,33 +1608,10 @@ function calculateLaserScore(client) {
     let scoreTiming = 0;
     let reasons = [];
 
-    // 1. Potencial Económico (40 pts) - Basado en éxito REAL por rangos de habitantes
-    const ranges = {
-        '<100': { total: 0, count: 0 },
-        '100-499': { total: 0, count: 0 },
-        '500-1.999': { total: 0, count: 0 },
-        '2.000-4.999': { total: 0, count: 0 },
-        '5.000-9.999': { total: 0, count: 0 },
-        '10.000-19.999': { total: 0, count: 0 },
-        '20.000-49.999': { total: 0, count: 0 },
-        '50.000-99.999': { total: 0, count: 0 },
-        '100.000-499.999': { total: 0, count: 0 },
-        '500.000+': { total: 0, count: 0 }
-    };
-
-    const getRangeKey = (h) => {
-        const cleanH = parseInt(String(h).replace(/[^\d]/g, '')) || 0;
-        if (cleanH >= 500000) return '500.000+';
-        if (cleanH >= 100000) return '100.000-499.999';
-        if (cleanH >= 50000) return '50.000-99.999';
-        if (cleanH >= 20000) return '20.000-49.999';
-        if (cleanH >= 10000) return '10.000-19.999';
-        if (cleanH >= 5000) return '5.000-9.999';
-        if (cleanH >= 2000) return '2.000-4.999';
-        if (cleanH >= 500) return '500-1.999';
-        if (cleanH >= 100) return '100-499';
-        return '<100';
-    };
+    // 1. Potencial Económico (40 pts) - Basado en éxito REAL por rangos de habitantes dinámicos
+    const dynamicData = getDynamicRanges();
+    const ranges = dynamicData.ranges;
+    const getRangeKey = dynamicData.getRangeKey;
 
     // Paso 1: Calcular medias solo con dinero REAL
     scoredClients.forEach(c => {
@@ -1638,19 +1698,8 @@ function calculateLaserScore(client) {
         const inhabitants = parseInt(String(client.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const currentProv = client.province;
 
-        const getRangeKey = (h) => {
-            const cleanH = parseInt(String(h).replace(/[^\d]/g, '')) || 0;
-            if (cleanH >= 500000) return '500.000+';
-            if (h >= 100000) return '100.000-499.999';
-            if (h >= 50000) return '50.000-99.999';
-            if (h >= 20000) return '20.000-49.999';
-            if (h >= 10000) return '10.000-19.999';
-            if (h >= 5000) return '5.000-9.999';
-            if (h >= 2000) return '2.000-4.999';
-            if (h >= 500) return '500-1.999';
-            if (h >= 100) return '100-499';
-            return '<100';
-        };
+        const dynamicData = getDynamicRanges();
+        const getRangeKey = dynamicData.getRangeKey;
 
         const rangeKey = getRangeKey(inhabitants);
 
@@ -2119,33 +2168,10 @@ window.showAlgorithmAudit = function () {
         return;
     }
 
-    // --- RANGOS ---
-    const ranges = {
-        '<100': { total: 0, count: 0 },
-        '100-499': { total: 0, count: 0 },
-        '500-1.999': { total: 0, count: 0 },
-        '2.000-4.999': { total: 0, count: 0 },
-        '5.000-9.999': { total: 0, count: 0 },
-        '10.000-19.999': { total: 0, count: 0 },
-        '20.000-49.999': { total: 0, count: 0 },
-        '50.000-99.999': { total: 0, count: 0 },
-        '100.000-499.999': { total: 0, count: 0 },
-        '500.000+': { total: 0, count: 0 }
-    };
-
-    const getRangeKey = (h) => {
-        const cleanH = parseInt(String(h).replace(/[^\d]/g, '')) || 0;
-        if (cleanH >= 500000) return '500.000+';
-        if (cleanH >= 100000) return '100.000-499.999';
-        if (cleanH >= 50000) return '50.000-99.999';
-        if (cleanH >= 20000) return '20.000-49.999';
-        if (cleanH >= 10000) return '10.000-19.999';
-        if (cleanH >= 5000) return '5.000-9.999';
-        if (cleanH >= 2000) return '2.000-4.999';
-        if (cleanH >= 500) return '500-1.999';
-        if (cleanH >= 100) return '100-499';
-        return '<100';
-    };
+    // --- RANGOS DINÁMICOS ---
+    const dynamicData = getDynamicRanges();
+    const ranges = dynamicData.ranges;
+    const getRangeKey = dynamicData.getRangeKey;
 
     scoredClients.forEach(c => {
         const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
@@ -2257,7 +2283,8 @@ window.showAlgorithmAudit = function () {
                 if (datesToProcess.length === 0) return;
 
                 const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-                const rKey = getRangeKey(inhabs);
+                // Usar la función global para mantener consistencia
+                const rKey = getDynamicRanges().getRangeKey(inhabs);
 
                 const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
                 const isInterested = String(c.status).toLowerCase() === 'interesado';
