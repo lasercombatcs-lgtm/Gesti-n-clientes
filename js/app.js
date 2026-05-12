@@ -2173,12 +2173,34 @@ window.showAlgorithmAudit = function () {
     const ranges = dynamicData.ranges;
     const getRangeKey = dynamicData.getRangeKey;
 
+    // Obtener total de referencia para el cálculo del 20%
+    const referenceClientsFull = clients.filter(c => {
+        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+        const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
+        return inhabs !== 1000000 && (hasMoney || String(c.status).toLowerCase() === 'interesado');
+    });
+    const totalRef = referenceClientsFull.length;
+    const limit20 = totalRef * 0.20;
+
+    // Añadir contador de referencia a cada rango
+    Object.keys(ranges).forEach(key => {
+        ranges[key].refCount = 0;
+    });
+
+    referenceClientsFull.forEach(c => {
+        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+        const key = getRangeKey(inhabs);
+        if (ranges[key]) ranges[key].refCount++;
+    });
+
     scoredClients.forEach(c => {
         const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const total = c.history.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
         const key = getRangeKey(inhabs);
-        ranges[key].total += total;
-        ranges[key].count++;
+        if (ranges[key]) {
+            ranges[key].total += total;
+            ranges[key].count++;
+        }
     });
 
     const averages = Object.entries(ranges).map(([key, data]) => ({ key, avg: data.count > 0 ? data.total / data.count : 0 }));
@@ -2229,13 +2251,23 @@ window.showAlgorithmAudit = function () {
                     <!-- Tabla Habitantes -->
                     <div>
                         <h4 style="color: var(--primary-color);">Potencial Económico (Máx 40 pts)</h4>
+                        <p style="font-size: 0.65rem; color: #64748b; margin-top: 5px;">
+                            Total Ref: <b>${totalRef}</b> pueblos | Límite División (20%): <b>${limit20.toFixed(1)}</b>
+                        </p>
                         <table style="font-size: 0.7rem; margin-top:10px; width:100%;">
-                            <thead><tr><th>Rango</th><th style="text-align:center;">Pueblos</th><th>Media Fact.</th><th>Puntos</th></tr></thead>
+                            <thead><tr><th>Rango</th><th style="text-align:center;">Fact.</th><th style="text-align:center;">Ref.</th><th>Media</th><th>Pts</th></tr></thead>
                             <tbody>
                                 ${Object.entries(ranges).map(([key, data]) => {
         const avg = data.count > 0 ? data.total / data.count : 0;
         const pts = maxAvg > 0 ? (avg / maxAvg) * 40 : 0;
-        return `<tr><td>${key}</td><td style="text-align:center; color:#64748b;">${data.count}</td><td>${Math.round(avg)}€</td><td style="font-weight:bold; color:${pts > 20 ? '#16a34a' : '#475569'}">${Math.round(pts)}/40</td></tr>`;
+        const isOverLimit = data.refCount > limit20;
+        return `<tr>
+            <td>${key}</td>
+            <td style="text-align:center; color:#64748b;">${data.count}</td>
+            <td style="text-align:center; font-weight:bold; color:${isOverLimit ? '#dc2626' : '#475569'}">${data.refCount}</td>
+            <td>${Math.round(avg)}€</td>
+            <td style="font-weight:bold; color:${pts > 20 ? '#16a34a' : '#475569'}">${Math.round(pts)}/40</td>
+        </tr>`;
     }).join('')}
                             </tbody>
                         </table>
