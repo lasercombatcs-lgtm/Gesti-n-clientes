@@ -1677,15 +1677,31 @@ function getVipContext() {
     const minDist = distances.length > 0 ? Math.min(...distances) : 0;
     const maxDist = distances.length > 0 ? Math.max(...distances) : 0;
 
+    // 3. Pool para Timing Predictivo (Agrupado para búsqueda instantánea)
+    const timingPool = {};
+    clients.forEach(c => {
+        if (!c.proximo1 && !c.proximo2) return;
+        const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
+        if (!hasMoney && String(c.status).toLowerCase() !== 'interesado') return;
+
+        const h = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+        const r = getRangeKey(h);
+        const p = c.province || 'Sin Provincia';
+
+        if (!timingPool[p]) timingPool[p] = {};
+        if (!timingPool[p][r]) timingPool[p][r] = [];
+        timingPool[p][r].push(c);
+    });
+
     memoizedVipContext = {
-        ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist, referenceData
+        ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist, referenceData, timingPool
     };
     return memoizedVipContext;
 }
 
 function calculateLaserScore(client) {
     const ctx = getVipContext();
-    const { ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist } = ctx;
+    const { ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist, timingPool } = ctx;
 
 
     // Si el cliente actual es una mancomunidad, su score es 0 o muy bajo
@@ -1733,15 +1749,9 @@ function calculateLaserScore(client) {
         const currentProv = client.province;
         const rangeKey = getRangeKey(inhabitants);
 
-        // Buscar clientes "afines" (Misma provincia y mismo rango) que tengan fechas proximo1 o proximo2
-        const similarClients = clients.filter(c => {
-            if (c.id === client.id) return false;
-            if (c.province !== currentProv) return false;
-            const h = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-            const r = getRangeKey(h);
-            const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
-            return r === rangeKey && (hasMoney || c.status === 'interesado') && (c.proximo1 || c.proximo2);
-        });
+        // Obtener pool pre-calculado para este estante (Provincia + Rango)
+        const candidates = (timingPool[currentProv] && timingPool[currentProv][rangeKey]) || [];
+        const similarClients = candidates.filter(c => c.id !== client.id);
 
         let totalPredictiveScore = 0;
         const now = new Date();
