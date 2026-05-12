@@ -1704,9 +1704,31 @@ function calculateLaserScore(client) {
     const { ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist, timingPool } = ctx;
 
 
-    // Si el cliente actual es una mancomunidad, su score es 0 o muy bajo
+    // LÓGICA ESPECIAL PARA MANCOMUNIDADES (1.000.000 hab)
     const currentH = parseInt(String(client.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-    if (currentH === 1000000) return { total: 0, reason: "Mancomunidades excluidas del ranking VIP" };
+    if (currentH === 1000000) {
+        // 1. No deben tener fechas de trabajo o seguimiento pendientes
+        const hasForbiddenDates = client.ultimoTrabajo || client.seguimiento || client.proximo1 || client.proximo2;
+        
+        // 2. Deben cumplir el enfriamiento (basado en último contacto)
+        let isCooledDown = true;
+        if (client.ultimoContacto) {
+            const lastContact = new Date(client.ultimoContacto);
+            const today = new Date();
+            const diffMs = today - lastContact;
+            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            
+            // Usamos 15 días como enfriamiento estándar si no se define otro
+            const cooldown = 15; 
+            if (diffDays < cooldown) isCooledDown = false;
+        }
+
+        if (!hasForbiddenDates && isCooledDown) {
+            return { total: 100, reason: "Mancomunidad: Máxima prioridad (100 pts)" };
+        } else {
+            return { total: 0, reason: hasForbiddenDates ? "Mancomunidad con fechas pendientes" : "Mancomunidad en periodo de enfriamiento" };
+        }
+    }
     let scoreDistance = 0;
     let scoreProvince = 0;
     let scoreTiming = 0;
