@@ -2255,7 +2255,7 @@ window.showAlgorithmAudit = function () {
                             Total Ref: <b>${totalRef}</b> pueblos | Límite División (20%): <b>${limit20.toFixed(1)}</b>
                         </p>
                         <table style="font-size: 0.7rem; margin-top:10px; width:100%;">
-                            <thead><tr><th>Rango</th><th style="text-align:center;">Fact.</th><th style="text-align:center;">Ref.</th><th>Media</th><th>Pts</th></tr></thead>
+                            <thead><tr><th>Rango</th><th style="text-align:center;">Pueblos</th><th>Media</th><th>Pts</th></tr></thead>
                             <tbody>
                                 ${Object.entries(ranges).map(([key, data]) => {
         const avg = data.count > 0 ? data.total / data.count : 0;
@@ -2263,7 +2263,6 @@ window.showAlgorithmAudit = function () {
         const isOverLimit = data.refCount > limit20;
         return `<tr>
             <td>${key}</td>
-            <td style="text-align:center; color:#64748b;">${data.count}</td>
             <td style="text-align:center; font-weight:bold; color:${isOverLimit ? '#dc2626' : '#475569'}">${data.refCount}</td>
             <td>${Math.round(avg)}€</td>
             <td style="font-weight:bold; color:${pts > 20 ? '#16a34a' : '#475569'}">${Math.round(pts)}/40</td>
