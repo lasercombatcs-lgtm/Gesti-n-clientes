@@ -231,6 +231,7 @@ function loadClients() {
             if (data) {
                 console.log("Datos sincronizados desde Firebase");
                 clients = data;
+                memoizedDynamicRanges = null; // Reiniciar caché al recibir datos nuevos
                 localStorage.setItem('laser_clients', JSON.stringify(clients));
                 filterClients();
                 updateProvinceFilter();
@@ -275,6 +276,7 @@ function normalizeProvince(client) {
  * Guarda los clientes en LocalStorage
  */
 function saveClients() {
+    memoizedDynamicRanges = null; // Reiniciar caché al guardar cambios
     // 1. Guardar copia local
     localStorage.setItem('laser_clients', JSON.stringify(clients));
 
@@ -1512,7 +1514,12 @@ function updateDailyStatsUI() {
  * Algoritmo Dinámico de Rangos de Habitantes
  * Divide automáticamente los rangos si superan el 20% del total de pueblos de referencia.
  */
+let memoizedDynamicRanges = null;
+
 function getDynamicRanges() {
+    // Si ya lo hemos calculado para este conjunto de datos, lo devolvemos
+    if (memoizedDynamicRanges) return memoizedDynamicRanges;
+
     // Límites base iniciales
     let bounds = [0, 100, 500, 2000, 5000, 10000, 20000, 50000, 100000, 500000, Infinity];
     
@@ -1560,7 +1567,8 @@ function getDynamicRanges() {
         }
     }
     
-    return buildRangeFunctions(bounds);
+    memoizedDynamicRanges = buildRangeFunctions(bounds);
+    return memoizedDynamicRanges;
 }
 
 function buildRangeFunctions(bounds) {
