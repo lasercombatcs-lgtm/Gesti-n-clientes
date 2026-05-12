@@ -1533,13 +1533,12 @@ function getDynamicRanges() {
     const totalRef = referenceClients.length;
     if (totalRef === 0) return buildRangeFunctions(bounds);
     
-    // Solo dividimos si el rango tiene más del 20% Y al menos 10 pueblos
-    // Esto evita bucles infinitos cuando hay pocos pueblos en total
-    const maxAllowed = Math.max(10, totalRef * 0.20);
+    // Ahora volvemos al 20% puro, la seguridad la da la "Detección de Diversidad"
+    const maxAllowed = totalRef * 0.20;
     
     let needsSplit = true;
     let iterations = 0;
-    const MAX_ITERATIONS = 20; // Freno de seguridad
+    const MAX_ITERATIONS = 20;
     
     while(needsSplit && iterations < MAX_ITERATIONS) {
         needsSplit = false;
@@ -1550,18 +1549,27 @@ function getDynamicRanges() {
             let lower = bounds[i];
             let upper = bounds[i+1];
             
-            let count = referenceClients.filter(c => {
+            // Filtrar los pueblos que caen en este rango
+            let rangeTowns = referenceClients.filter(c => {
                 const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
                 return inhabs >= lower && inhabs < upper;
-            }).length;
+            });
+            
+            let count = rangeTowns.length;
             
             if (count > maxAllowed) {
-                let effectiveUpper = upper === Infinity ? 1000000 : upper;
-                if (effectiveUpper - lower > 10) { // No dividir si el rango es menor a 10 habs
-                    let mid = Math.floor((lower + effectiveUpper) / 2);
-                    if (!newBounds.includes(mid)) {
-                        newBounds.push(mid);
-                        needsSplit = true;
+                // DETECCIÓN DE DIVERSIDAD:
+                // Si todos los pueblos del rango tienen los mismos habitantes, no sirve de nada dividir
+                const uniqueInhabs = new Set(rangeTowns.map(c => parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0));
+                
+                if (uniqueInhabs.size > 1) {
+                    let effectiveUpper = upper === Infinity ? 1000000 : upper;
+                    if (effectiveUpper - lower > 1) {
+                        let mid = Math.floor((lower + effectiveUpper) / 2);
+                        if (!newBounds.includes(mid)) {
+                            newBounds.push(mid);
+                            needsSplit = true;
+                        }
                     }
                 }
             }
