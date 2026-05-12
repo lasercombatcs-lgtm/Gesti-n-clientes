@@ -231,7 +231,8 @@ function loadClients() {
             if (data) {
                 console.log("Datos sincronizados desde Firebase");
                 clients = data;
-                memoizedDynamicRanges = null; // Reiniciar caché al recibir datos nuevos
+                memoizedDynamicRanges = null;
+                memoizedVipContext = null; // Reiniciar contexto VIP
                 localStorage.setItem('laser_clients', JSON.stringify(clients));
                 filterClients();
                 updateProvinceFilter();
@@ -276,7 +277,8 @@ function normalizeProvince(client) {
  * Guarda los clientes en LocalStorage
  */
 function saveClients() {
-    memoizedDynamicRanges = null; // Reiniciar caché al guardar cambios
+    memoizedDynamicRanges = null;
+    memoizedVipContext = null; // Reiniciar contexto VIP
     // 1. Guardar copia local
     localStorage.setItem('laser_clients', JSON.stringify(clients));
 
@@ -1615,12 +1617,76 @@ function formatRangeName(lower, upper) {
 /**
  * Cerebro del Sistema: Calcula el Ranking VIP (0-100 pts)
  */
-function calculateLaserScore(client) {
-    // Excluir mancomunidades del cálculo base (1,000,000 hab)
+/**
+ * Pre-calcula el contexto global para el Ranking VIP (Averages, ProvStats, Distances)
+ * para evitar recalcularlo miles de veces.
+ */
+let memoizedVipContext = null;
+
+function getVipContext() {
+    if (memoizedVipContext) return memoizedVipContext;
+
+    const dynamicData = getDynamicRanges();
+    const ranges = dynamicData.ranges;
+    const getRangeKey = dynamicData.getRangeKey;
+
     const scoredClients = clients.filter(c => {
         const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         return inhabs !== 1000000 && c.history && c.history.some(entry => (parseFloat(entry.amount) || 0) > 0);
     });
+
+    // 1. Medias de Habitantes
+    scoredClients.forEach(c => {
+        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+        const total = c.history.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+        const key = getRangeKey(inhabs);
+        if (ranges[key]) {
+            ranges[key].total += total;
+            ranges[key].count++;
+        }
+    });
+
+    const averages = Object.entries(ranges).map(([key, data]) => ({
+        key,
+        avg: data.count > 0 ? data.total / data.count : 0
+    }));
+    const maxAvg = Math.max(...averages.map(a => a.avg), 0);
+
+    // 2. Referencia para Logística y Provincia
+    const referenceData = clients.filter(c => {
+        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+        const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
+        return inhabs !== 1000000 && (hasMoney || c.status === 'interesado');
+    }).map(c => {
+        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+        const rKey = getRangeKey(inhabs);
+        const realAmount = c.history ? c.history.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0) : 0;
+        const virtualAmount = realAmount > 0 ? realAmount : (ranges[rKey].total / (ranges[rKey].count || 1));
+
+        return { distance: parseFloat(c.distance) || 0, province: c.province, amount: virtualAmount };
+    });
+
+    const provStats = {};
+    referenceData.forEach(d => {
+        if (!d.province) return;
+        provStats[d.province] = (provStats[d.province] || 0) + d.amount;
+    });
+    const maxProvBill = Math.max(...Object.values(provStats), 0);
+
+    const distances = referenceData.map(d => d.distance).filter(d => d > 0);
+    const minDist = distances.length > 0 ? Math.min(...distances) : 0;
+    const maxDist = distances.length > 0 ? Math.max(...distances) : 0;
+
+    memoizedVipContext = {
+        ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist, referenceData
+    };
+    return memoizedVipContext;
+}
+
+function calculateLaserScore(client) {
+    const ctx = getVipContext();
+    const { ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist } = ctx;
+
 
     // Si el cliente actual es una mancomunidad, su score es 0 o muy bajo
     const currentH = parseInt(String(client.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
@@ -1630,84 +1696,31 @@ function calculateLaserScore(client) {
     let scoreTiming = 0;
     let reasons = [];
 
-    // 1. Potencial Económico (40 pts) - Basado en éxito REAL por rangos de habitantes dinámicos
-    const dynamicData = getDynamicRanges();
-    const ranges = dynamicData.ranges;
-    const getRangeKey = dynamicData.getRangeKey;
-
-    // Paso 1: Calcular medias solo con dinero REAL
-    scoredClients.forEach(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-        const total = c.history.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
-        const key = getRangeKey(inhabs);
-        ranges[key].total += total;
-        ranges[key].count++;
-    });
-
-    const averages = Object.entries(ranges).map(([key, data]) => ({
-        key,
-        avg: data.count > 0 ? data.total / data.count : 0
-    }));
-    const maxAvg = Math.max(...averages.map(a => a.avg));
-
     let scoreInhabitants = 0;
     if (maxAvg > 0) {
         const inhabs = parseInt(String(client.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const currentKey = getRangeKey(inhabs);
-        const currentAvg = ranges[currentKey].total / (ranges[currentKey].count || 1);
+        const currentRangeData = ranges[currentKey];
+        const currentAvg = currentRangeData ? (currentRangeData.total / (currentRangeData.count || 1)) : 0;
         scoreInhabitants = (currentAvg / maxAvg) * 40;
         reasons.push(`Rentabilidad: ${Math.round(scoreInhabitants)}/40 pts (${currentKey})`);
     }
 
-    // Paso 2: Crear lista de REFERENCIA (Éxitos Reales + Interesados Virtuales)
-    // Esto servirá para Logística y Provincia
-    const referenceData = clients.filter(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-        const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
-        return inhabs !== 1000000 && (hasMoney || c.status === 'interesado');
-    }).map(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-        const rKey = getRangeKey(inhabs);
-        const realAmount = c.history ? c.history.reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0) : 0;
-
-        // Si no tiene dinero real pero es interesado, le asignamos la media de su rango
-        const virtualAmount = realAmount > 0 ? realAmount : (ranges[rKey].total / (ranges[rKey].count || 1));
-
-        return {
-            distance: parseFloat(c.distance) || 0,
-            province: c.province,
-            amount: virtualAmount
-        };
-    });
-
-    // 2. Logística (30 pts) - Basada en cercanía a Éxitos o Interesados
-    const distances = referenceData.map(d => d.distance).filter(d => d > 0);
-    if (distances.length > 0) {
-        const minDist = Math.min(...distances);
-        const maxDist = Math.max(...distances);
-        const currentDist = parseFloat(client.distance) || 0;
-        if (currentDist > 0 && maxDist > minDist) {
-            const score = 30 * (1 - (currentDist - minDist) / (maxDist - minDist));
-            scoreDistance = Math.max(0, Math.min(30, score));
-            reasons.push(`Logística: ${Math.round(scoreDistance)}/30 pts (${currentDist} km)`);
-        } else if (currentDist > 0 && currentDist <= minDist) {
-            scoreDistance = 30;
-            reasons.push(`Logística: 30/30 pts (Distancia mínima)`);
-        }
+    // 2. Logística (30 pts)
+    const currentDist = parseFloat(client.distance) || 0;
+    if (currentDist > 0 && maxDist > minDist) {
+        const score = 30 * (1 - (currentDist - minDist) / (maxDist - minDist));
+        scoreDistance = Math.max(0, Math.min(30, score));
+        reasons.push(`Logística: ${Math.round(scoreDistance)}/30 pts (${currentDist} km)`);
+    } else if (currentDist > 0 && currentDist <= minDist) {
+        scoreDistance = 30;
+        reasons.push(`Logística: 30/30 pts (Distancia mínima)`);
     }
 
-    // 3. Provincia (10 pts) - Basada en volumen real + potencial interesado
-    const provStats = {};
-    referenceData.forEach(d => {
-        if (!d.province) return;
-        provStats[d.province] = (provStats[d.province] || 0) + d.amount;
-    });
-
-    const bills = Object.values(provStats);
-    if (bills.length > 0) {
-        const maxBill = Math.max(...bills);
-        const currentProvBill = provStats[client.province] || 0;
-        scoreProvince = (currentProvBill / maxBill) * 10;
+    // 3. Provincia (10 pts)
+    const currentProvBill = provStats[client.province] || 0;
+    if (maxProvBill > 0) {
+        scoreProvince = (currentProvBill / maxProvBill) * 10;
         if (scoreProvince > 0) {
             reasons.push(`Provincia: ${Math.round(scoreProvince)}/10 pts (${client.province})`);
         }
@@ -1716,13 +1729,8 @@ function calculateLaserScore(client) {
     // 4. Timing Predictivo (Máx 20 pts)
     // No calculamos fechas manuales porque esos clientes se excluyen del ranking
     if (true) {
-        // PRIORIDAD PREDICTIVA REFINADA (Máx 20 pts)
         const inhabitants = parseInt(String(client.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const currentProv = client.province;
-
-        const dynamicData = getDynamicRanges();
-        const getRangeKey = dynamicData.getRangeKey;
-
         const rangeKey = getRangeKey(inhabitants);
 
         // Buscar clientes "afines" (Misma provincia y mismo rango) que tengan fechas proximo1 o proximo2
