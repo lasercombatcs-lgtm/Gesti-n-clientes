@@ -1239,11 +1239,13 @@ function filterClients() {
             const isCooledDown = (today - contactTime) > ms334Days;
 
             // REGLA ESPECIAL MANCOMUNIDADES: 
-            // Si es Mancomunidad, no debe tener NINGUNA fecha (Trabajo, Seguimiento o Contactos)
-            const isMancomunidad = parseInt(String(c.inhabitants || '0').replace(/\./g, '')) === 1000000;
+            // Si es Mancomunidad (1.000.000 hab), no debe tener NINGUNA fecha (Trabajo, Seguimiento o Contactos)
+            const cleanHab = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
+            const isMancomunidad = cleanHab === 1000000;
+            
             if (isMancomunidad) {
                 const hasAnyDate = c.ultimoTrabajo || c.seguimiento || c.proximo1 || c.proximo2 || c.proximo3;
-                return !hasAnyDate && isCooledDown;
+                if (hasAnyDate) return false;
             }
 
             return isCooledDown;
