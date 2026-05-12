@@ -1533,11 +1533,17 @@ function getDynamicRanges() {
     const totalRef = referenceClients.length;
     if (totalRef === 0) return buildRangeFunctions(bounds);
     
-    const maxAllowed = totalRef * 0.20;
-    let needsSplit = true;
+    // Solo dividimos si el rango tiene más del 20% Y al menos 10 pueblos
+    // Esto evita bucles infinitos cuando hay pocos pueblos en total
+    const maxAllowed = Math.max(10, totalRef * 0.20);
     
-    while(needsSplit) {
+    let needsSplit = true;
+    let iterations = 0;
+    const MAX_ITERATIONS = 20; // Freno de seguridad
+    
+    while(needsSplit && iterations < MAX_ITERATIONS) {
         needsSplit = false;
+        iterations++;
         let newBounds = [...bounds];
         
         for (let i = 0; i < bounds.length - 1; i++) {
@@ -1551,7 +1557,7 @@ function getDynamicRanges() {
             
             if (count > maxAllowed) {
                 let effectiveUpper = upper === Infinity ? 1000000 : upper;
-                if (effectiveUpper - lower > 1) {
+                if (effectiveUpper - lower > 10) { // No dividir si el rango es menor a 10 habs
                     let mid = Math.floor((lower + effectiveUpper) / 2);
                     if (!newBounds.includes(mid)) {
                         newBounds.push(mid);
