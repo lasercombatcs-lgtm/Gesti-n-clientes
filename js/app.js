@@ -1525,11 +1525,11 @@ function getDynamicRanges() {
     // Límites base iniciales
     let bounds = [0, 100, 500, 2000, 5000, 10000, 20000, 50000, 100000, 500000, Infinity];
     
-    // Obtener pueblos de referencia (los que participan en la lógica)
+    // Obtener pueblos de referencia (incluyendo mancomunidades)
     const referenceClients = clients.filter(c => {
         const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
-        return inhabs !== 1000000 && (hasMoney || String(c.status).toLowerCase() === 'interesado');
+        return hasMoney || String(c.status).toLowerCase() === 'interesado';
     });
     
     const totalRef = referenceClients.length;
@@ -1591,6 +1591,7 @@ function buildRangeFunctions(bounds) {
     const rangesObj = {};
     const getRangeKey = (h) => {
         const cleanH = parseInt(String(h).replace(/[^\d]/g, '')) || 0;
+        if (cleanH === 1000000) return "Mancomunidad";
         for (let i = 0; i < bounds.length - 1; i++) {
             if (cleanH >= bounds[i] && cleanH < bounds[i+1]) {
                 return formatRangeName(bounds[i], bounds[i+1]);
@@ -1603,6 +1604,7 @@ function buildRangeFunctions(bounds) {
         let name = formatRangeName(bounds[i], bounds[i+1]);
         rangesObj[name] = { total: 0, count: 0 };
     }
+    rangesObj["Mancomunidad"] = { total: 0, count: 0 };
     
     return { ranges: rangesObj, getRangeKey };
 }
@@ -1631,8 +1633,7 @@ function getVipContext() {
     const getRangeKey = dynamicData.getRangeKey;
 
     const scoredClients = clients.filter(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-        return inhabs !== 1000000 && c.history && c.history.some(entry => (parseFloat(entry.amount) || 0) > 0);
+        return c.history && c.history.some(entry => (parseFloat(entry.amount) || 0) > 0);
     });
 
     // 1. Medias de Habitantes
@@ -1654,9 +1655,8 @@ function getVipContext() {
 
     // 2. Referencia para Logística y Provincia
     const referenceData = clients.filter(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
-        return inhabs !== 1000000 && (hasMoney || c.status === 'interesado');
+        return hasMoney || c.status === 'interesado';
     }).map(c => {
         const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const rKey = getRangeKey(inhabs);
@@ -1703,31 +1703,6 @@ function calculateLaserScore(client) {
     const ctx = getVipContext();
     const { ranges, getRangeKey, maxAvg, provStats, maxProvBill, minDist, maxDist, timingPool } = ctx;
 
-
-    // LÓGICA ESPECIAL PARA MANCOMUNIDADES (1.000.000 hab)
-    const currentH = parseInt(String(client.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-    if (currentH === 1000000) {
-        // 1. No deben tener fechas de trabajo o seguimiento pendientes (incluyendo proximo3)
-        const hasForbiddenDates = client.ultimoTrabajo || client.seguimiento || client.proximo1 || client.proximo2 || client.proximo3;
-        
-        // 2. Deben cumplir el enfriamiento (334 días, igual que el resto de la lista VIP)
-        let isCooledDown = true;
-        if (client.ultimoContacto) {
-            const lastContact = new Date(formatDateForInput(client.ultimoContacto));
-            const today = new Date();
-            const diffMs = today - lastContact;
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            
-            const cooldown = 334; // Sincronizado con el resto del sistema
-            if (diffDays < cooldown) isCooledDown = false;
-        }
-
-        if (!hasForbiddenDates && isCooledDown) {
-            return { total: 100, reason: "Mancomunidad: Máxima prioridad (100 pts)" };
-        } else {
-            return { total: 0, reason: hasForbiddenDates ? "Mancomunidad con fechas pendientes" : "Mancomunidad en periodo de enfriamiento (334 días)" };
-        }
-    }
     let scoreDistance = 0;
     let scoreProvince = 0;
     let scoreTiming = 0;
@@ -2236,9 +2211,8 @@ window.showAlgorithmAudit = function () {
 
     // Obtener total de referencia para el cálculo del 20%
     const referenceClientsFull = clients.filter(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
-        return inhabs !== 1000000 && (hasMoney || String(c.status).toLowerCase() === 'interesado');
+        return hasMoney || String(c.status).toLowerCase() === 'interesado';
     });
     const totalRef = referenceClientsFull.length;
     const limit20 = totalRef * 0.20;
@@ -2269,9 +2243,8 @@ window.showAlgorithmAudit = function () {
 
     // --- REFERENCIA (Éxitos Reales + Interesados Virtuales) ---
     const referenceData = clients.filter(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const hasMoney = c.history && c.history.some(e => (parseFloat(e.amount) || 0) > 0);
-        return inhabs !== 1000000 && (hasMoney || c.status === 'interesado');
+        return hasMoney || c.status === 'interesado';
     }).map(c => {
         const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
         const rKey = getRangeKey(inhabs);
