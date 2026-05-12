@@ -345,6 +345,9 @@ tbody tr:hover {
     max-width: 650px;
     position: relative;
     padding: 30px;
+    background-color: var(--card-bg);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
     max-height: calc(100vh - 80px); /* Altura máxima para no salirse de la pantalla */
     overflow-y: auto; /* Scroll interno si los campos son muchos */
 }
