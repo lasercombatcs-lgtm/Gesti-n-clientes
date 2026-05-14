@@ -2207,8 +2207,7 @@ function initDraggablePanel(panel, handle) {
 window.showAlgorithmAudit = function () {
     // 1. Recopilar datos de éxito (lo mismo que hace calculateLaserScore)
     const scoredClients = clients.filter(c => {
-        const inhabs = parseInt(String(c.inhabitants || '0').replace(/[^\d]/g, '')) || 0;
-        return inhabs !== 1000000 && c.history && c.history.some(entry => (parseFloat(entry.amount) || 0) > 0);
+        return c.history && c.history.some(entry => (parseFloat(entry.amount) || 0) > 0);
     });
 
     if (scoredClients.length === 0) {
